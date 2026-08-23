@@ -28,6 +28,17 @@ settings = get_settings()
 router = APIRouter()
 
 
+def _resolve_role_for_new_user(email: str) -> UserRole:
+    """
+    Assigns ADMIN to emails listed in ADMIN_EMAILS, DEVELOPER otherwise. This is
+    the only way to reach an elevated role - there is no in-app promotion
+    endpoint, and no path here ever trusts a client-supplied role.
+    """
+    if email.lower().strip() in settings.admin_emails_list:
+        return UserRole.ADMIN
+    return UserRole.DEVELOPER
+
+
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED, summary="Register User")
 def register_user(payload: UserRegisterRequest, db: Session = Depends(get_db)):
     """Registers a new platform user with bcrypt password hashing."""
@@ -40,13 +51,12 @@ def register_user(payload: UserRegisterRequest, db: Session = Depends(get_db)):
 
     # Role is never taken from client input - a self-registering caller could
     # otherwise request "ADMIN" and require_roles()'s ADMIN-bypass would grant
-    # them access to every protected endpoint. Elevated roles must be assigned
-    # by an existing admin through a separate, authenticated action.
+    # them access to every protected endpoint. See _resolve_role_for_new_user.
     user = User(
         email=payload.email.lower().strip(),
         hashed_password=get_password_hash(payload.password),
         full_name=payload.full_name,
-        role=UserRole.DEVELOPER,
+        role=_resolve_role_for_new_user(payload.email),
         is_active=True,
     )
     db.add(user)
@@ -137,7 +147,7 @@ def login_with_github_token(payload: GitHubTokenLoginRequest, db: Session = Depe
             github_username=gh_login,
             github_avatar_url=gh_avatar,
             github_token=token,
-            role=UserRole.DEVELOPER,
+            role=_resolve_role_for_new_user(gh_email),
             is_active=True,
         )
         db.add(user)
@@ -180,7 +190,7 @@ def send_otp(payload: OTPRequest, db: Session = Depends(get_db)):
             full_name=email.split("@")[0].capitalize(),
             otp_code=otp_code,
             otp_expires_at=expires_at,
-            role=UserRole.DEVELOPER,
+            role=_resolve_role_for_new_user(email),
             is_active=True,
         )
         db.add(user)

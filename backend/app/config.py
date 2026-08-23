@@ -24,6 +24,15 @@ class Settings(BaseSettings):
     ALLOWED_HOSTS: str = "localhost,127.0.0.1"
     CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"
 
+    # --- Admin Bootstrap ---
+    # Comma-separated emails that get ADMIN on first registration/login instead
+    # of the default DEVELOPER role. This is the only way to reach an elevated
+    # role - there is no in-app promotion endpoint, and self-registration always
+    # ignores any client-supplied role. Set this to your own email before
+    # deploying so you aren't permanently locked out of SECURITY_ENGINEER/ADMIN-only
+    # actions (PR creation, repository deletion).
+    ADMIN_EMAILS: str = ""
+
     # --- PostgreSQL Database ---
     POSTGRES_USER: str = "patchforge"
     POSTGRES_PASSWORD: str = "patchforge_secure_pass"
@@ -73,6 +82,10 @@ class Settings(BaseSettings):
     @property
     def allowed_hosts_list(self) -> List[str]:
         return [host.strip() for host in self.ALLOWED_HOSTS.split(",") if host.strip()]
+
+    @property
+    def admin_emails_list(self) -> List[str]:
+        return [email.strip().lower() for email in self.ADMIN_EMAILS.split(",") if email.strip()]
 
 
 @lru_cache()
