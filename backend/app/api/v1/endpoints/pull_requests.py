@@ -27,7 +27,7 @@ router = APIRouter()
 def create_pull_request(
     payload: PullRequestCreateRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.SECURITY_ENGINEER)),
+    current_user: User = Depends(require_roles(UserRole.SECURITY_ENGINEER, UserRole.DEVELOPER)),
 ):
     """
     Creates an isolated remediation branch, commits the verified code diff,
@@ -43,6 +43,11 @@ def create_pull_request(
     )
     if not patch:
         raise EntityNotFoundException("Patch", payload.patch_id)
+
+    # Prevent duplicate PR creation from raising 500 Integrity Errors
+    existing_pr = db.query(PullRequest).filter_by(patch_id=patch.id).first()
+    if existing_pr:
+        return existing_pr
 
     pr = github_client.create_remediation_pr(
         db=db,

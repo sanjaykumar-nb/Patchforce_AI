@@ -152,38 +152,47 @@ class GitHubClient:
                     import base64
                     committed = False
                     if vuln.file_path and patch.new_code:
-                        # Reconstruct the FULL patched file - patch.new_code is only the
-                        # patched function, not the file. Committing new_code directly
-                        # here used to replace the entire target file with just that one
-                        # function, destroying everything else in it.
-                        full_original = read_source_for_vulnerability(vuln)
-                        full_patched = splice_function_replacement(
-                            full_source=full_original,
-                            old_function_code=patch.old_code,
-                            new_function_code=patch.new_code,
-                        )
-
-                        # Check if file exists in the target repo
+                        # Check if file exists in the target repo and fetch its content
                         file_resp = client.get(
                             f"{self.api_base}/repos/{target_repo}/contents/{vuln.file_path}",
                             params={"ref": branch_name},
                         )
-                        existing_sha = file_resp.json().get("sha") if file_resp.status_code == 200 else None
-                        encoded = base64.b64encode(full_patched.encode()).decode()
-                        commit_payload = {
-                            "message": self.format_commit_message(vuln.cwe, vuln.file_path, vuln.function_name),
-                            "content": encoded,
-                            "branch": branch_name,
-                        }
-                        if existing_sha:
-                            commit_payload["sha"] = existing_sha
-                        commit_resp = client.put(
-                            f"{self.api_base}/repos/{target_repo}/contents/{vuln.file_path}",
-                            json=commit_payload,
-                        )
-                        if commit_resp.status_code in (200, 201):
-                            committed = True
-                            logger.info(f"Patched '{vuln.file_path}' committed to branch '{branch_name}'")
+                        existing_sha = None
+                        full_original = None
+                        if file_resp.status_code == 200:
+                            file_data = file_resp.json()
+                            existing_sha = file_data.get("sha")
+                            content_b64 = file_data.get("content", "")
+                            if content_b64:
+                                full_original = base64.b64decode(content_b64).decode("utf-8", errors="replace")
+                        
+                        if not full_original:
+                            full_original = read_source_for_vulnerability(vuln)
+                            
+                        # If we only have the snippet, do not overwrite the entire file with it
+                        if len(full_original) <= len(vuln.source_snippet) + 50:
+                            logger.warning(f"Full source not found for {vuln.file_path}, skipping direct file patch.")
+                        else:
+                            full_patched = splice_function_replacement(
+                                full_source=full_original,
+                                old_function_code=patch.old_code,
+                                new_function_code=patch.new_code,
+                            )
+                            encoded = base64.b64encode(full_patched.encode()).decode()
+                            commit_payload = {
+                                "message": self.format_commit_message(vuln.cwe, vuln.file_path, vuln.function_name),
+                                "content": encoded,
+                                "branch": branch_name,
+                            }
+                            if existing_sha:
+                                commit_payload["sha"] = existing_sha
+                            commit_resp = client.put(
+                                f"{self.api_base}/repos/{target_repo}/contents/{vuln.file_path}",
+                                json=commit_payload,
+                            )
+                            if commit_resp.status_code in (200, 201):
+                                committed = True
+                                logger.info(f"Patched '{vuln.file_path}' committed to branch '{branch_name}'")
 
                     # Fallback: always commit the unified diff as a patch file
                     if not committed and patch.diff_content:
