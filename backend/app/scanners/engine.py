@@ -73,10 +73,16 @@ class SecurityScanner:
         self,
         directory_path: str,
         exclude_dirs: Optional[List[str]] = None,
+        max_files: int = 500,
+        max_file_bytes: int = 512 * 1024,  # 512 KB
     ) -> Tuple[List[Finding], int]:
         """
         Recursively scans all supported source files within a directory tree.
         Returns a tuple of (all_findings, total_files_scanned).
+
+        Safety caps (prevent OOM on large repos / constrained environments):
+        - max_files: stop after scanning this many source files (default 500).
+        - max_file_bytes: skip any single file larger than this (default 512 KB).
         """
         if exclude_dirs is None:
             exclude_dirs = [
@@ -105,9 +111,30 @@ class SecurityScanner:
             dirs[:] = [d for d in dirs if d not in exclude_dirs]
 
             for file in files:
+                # Hard cap: stop early if we've already hit the file limit
+                if files_scanned_count >= max_files:
+                    logger.warning(
+                        f"scan_directory: reached max_files cap ({max_files}). "
+                        f"Stopping early to protect memory. Remaining files skipped."
+                    )
+                    return all_findings, files_scanned_count
+
                 ext = os.path.splitext(file)[1].lower()
                 if ext in (".py", ".pyw", ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"):
                     full_path = os.path.join(root, file)
+
+                    # Skip oversized files (minified bundles, generated code, etc.)
+                    try:
+                        file_size = os.path.getsize(full_path)
+                        if file_size > max_file_bytes:
+                            logger.debug(
+                                f"scan_directory: skipping {full_path} "
+                                f"({file_size // 1024} KB > {max_file_bytes // 1024} KB limit)."
+                            )
+                            continue
+                    except OSError:
+                        continue
+
                     rel_path = os.path.relpath(full_path, directory_path).replace("\\", "/")
                     findings = self.scan_file(full_path)
                     # Normalize findings to relative path
