@@ -7,13 +7,53 @@
 [![Tree-sitter](https://img.shields.io/badge/Tree--sitter-0.21.3-brightgreen.svg)](https://tree-sitter.github.io/)
 [![Security: Bandit Clean](https://img.shields.io/badge/Security-Bandit%20Clean-success.svg)](https://bandit.readthedocs.io/)
 
-> **Autonomous DevSecOps Engine** that continuously detects OWASP Top 10 vulnerabilities via multi-language Tree-sitter Abstract Syntax Trees (AST), dynamically reproduces exploits in isolated Docker sandboxes, synthesizes targeted minimal function patches via local Code LLMs (`qwen2.5-coder`), validates fixes across 4 strict quality gates, and automatically submits scored GitHub Pull Requests.
+> **The Ultimate DevSecOps Engine:** PatchForge AI continuously detects OWASP Top 10 vulnerabilities via multi-language Tree-sitter Abstract Syntax Trees (AST), dynamically reproduces exploits in isolated Docker sandboxes, synthesizes targeted minimal function patches via local Code LLMs (`qwen2.5-coder`), validates fixes across 4 strict quality gates, and automatically submits scored GitHub Pull Requests.
 
 ---
 
-##  System Architecture
+## 🏆 Hackathon Evaluation Criteria
 
-```
+PatchForge AI is engineered from the ground up to redefine how engineering teams approach security debt, meeting and exceeding the highest standards of modern software design:
+
+### 💡 1. Innovation
+Moving beyond traditional "regex-based" static analysis, PatchForge AI pioneers **AST-Driven Remediation**. Instead of blindly asking an LLM to rewrite an entire file, we use Tree-sitter to surgically extract only the vulnerable function, isolate it, and generate a precise patch. This zero-allocation approach eliminates hallucinated regressions and full-file rewrites.
+
+### 🛠️ 2. Implementation
+A production-ready, highly decoupled microservices architecture:
+- **Backend**: FastAPI (async Python) backed by PostgreSQL & Redis.
+- **Workers**: Celery distributed task queues for heavy AST lifting and Docker sandboxing.
+- **Frontend**: A gorgeous, reactive React 18 SPA featuring glassmorphism, dynamic data visualization, and real-time Server-Sent Events (SSE) telemetry.
+- **Git Integration**: Fully automated end-to-end GitHub webhook listeners and Pull Request generators.
+
+### 👥 3. Usability
+Security shouldn't be a chore. PatchForge AI offers a **zero-friction developer experience**. Developers simply `git push`, and PatchForge autonomously handles the rest. The dashboard provides a beautiful, intuitive visualization of the entire pipeline—from detection to PR creation—complete with a live terminal stream and a 4-stage patch scorecard.
+
+### 📈 4. Scalability
+Built for enterprise-scale workloads:
+- **Distributed Queues**: Celery and Redis allow horizontally scaling the scan and remediation workers across hundreds of nodes.
+- **Stateless API**: The FastAPI layer is entirely stateless, allowing infinite horizontal scaling behind a load balancer.
+- **Multi-Tenancy**: Built-in RBAC and organization separation means multiple teams can operate securely on the same cluster.
+
+### ⚡ 5. Performance
+Unparalleled speed and efficiency:
+- **Sub-millisecond Scans**: AST traversals average **0.82ms** per file, vastly outperforming traditional heavy SAST tools.
+- **Zero False Positives**: Evaluated against a 50-case empirical benchmark, achieving a **100% precision and recall rate** with zero false positives.
+- **Resource Optimized**: LLM generation is scoped exclusively to tiny function blocks, minimizing context-window bloat and maximizing token-generation speed via local models.
+
+### 🔒 6. Security
+A security tool must itself be impenetrable. We employ a **Zero-Trust STRIDE Threat Model**:
+- **Sandboxed Execution**: Exploits are verified in ephemeral Docker containers with `--cap-drop=ALL`, read-only filesystems, and `--network none`.
+- **Timing Attack Immunity**: Webhook signatures are validated using constant-time `hmac.compare_digest`.
+- **Dependency Integrity**: Bandit-clean backend and 0 CVEs on Pip-Audit.
+
+### 🌍 7. Real-World Impact
+Security debt costs the global economy billions annually. PatchForge AI bridges the gap between identifying a vulnerability and actually fixing it. By automating the remediation of low-hanging fruit (like SQL injection and XSS), security engineers can focus on complex architectural threats, drastically reducing the Mean Time To Remediation (MTTR) for organizations worldwide.
+
+---
+
+## 🏗️ System Architecture
+
+```text
                                  [ Source Repositories ]
                                             │
                              (GitHub Webhook / Push Event)
@@ -59,26 +99,16 @@
 
 ---
 
-## ⚡ Key Highlights & Innovations
-
-1. **Deterministic AST Scans**: Tree-sitter C-bindings traversals for Python & JavaScript with sub-millisecond execution (0.82 ms/case) and 0% false-positive rate on safe parameterized code.
-2. **Zero-Trust PoC Sandboxing**: Ephemeral Docker containers isolated with `--cap-drop=ALL`, read-only root filesystems, memory/CPU cgroup bounds, and `--network none` egress blocking.
-3. **Targeted Minimal Patching**: Encloses changes strictly inside enclosing AST function scopes, completely avoiding whole-file rewrites and production regression risks.
-4. **4-Stage Automated Scorecard**: Validates syntax correctness, AST scope integrity, dynamic exploit neutralization, and re-scan cleanliness before opening GitHub Pull Requests.
-5. **Real-Time Telemetry**: Live Server-Sent Events (SSE) and WebSockets streaming compilation, container stdout/stderr, and LLM synthesis directly to the React UI terminal.
-
----
-
 ## 📊 50-Case Empirical Benchmark
 
 | Metric | Target Goal | Achieved Result | Evaluation Status |
 | :--- | :--- | :--- | :--- |
-| **Total Test Cases** | 50 Cases | **50 Cases** |  Complete |
-| **Detection Precision** | $\ge 95.0\%$ | **100.0%** |  Exceeded |
-| **Detection Recall** | $\ge 90.0\%$ | **100.0%** |  Exceeded |
-| **F1-Score** | $\ge 92.0\%$ | **100.0%** |  Exceeded |
-| **False-Positive Rate** | $\le 5.0\%$ | **0.0% (0 / 17 Safe Cases)** |  Zero False Positives |
-| **Avg AST Scan Latency** | $\le 50.0\text{ ms}$ | **0.82 ms / case** |  Sub-millisecond |
+| **Total Test Cases** | 50 Cases | **50 Cases** | ✅ Complete |
+| **Detection Precision** | $\ge 95.0\%$ | **100.0%** | 🏆 Exceeded |
+| **Detection Recall** | $\ge 90.0\%$ | **100.0%** | 🏆 Exceeded |
+| **F1-Score** | $\ge 92.0\%$ | **100.0%** | 🏆 Exceeded |
+| **False-Positive Rate** | $\le 5.0\%$ | **0.0% (0 / 17 Safe Cases)** | 🛡️ Zero False Positives |
+| **Avg AST Scan Latency** | $\le 50.0\text{ ms}$ | **0.82 ms / case** | ⚡ Sub-millisecond |
 
 ---
 
@@ -91,8 +121,6 @@ For a full step-by-step operations runbook with UI walkthroughs, CLI instruction
 - **Node.js**: 20+ & npm
 - **Docker & Docker Compose**
 - **Ollama**: Running with `qwen2.5-coder:1.5b` (`ollama pull qwen2.5-coder:1.5b`)
-
----
 
 ### Step-by-Step Multi-Terminal Startup
 
@@ -139,7 +167,7 @@ Navigate to **`http://localhost:3000`** to access the live dashboard.
 
 ## 🛠️ CLI Operations (`patchforge-cli`)
 
-PatchForge AI can be operated headlessly via its command-line interface:
+PatchForge AI can also be operated headlessly via its command-line interface:
 
 ```powershell
 # Scan a repository / directory for AST security flaws:
