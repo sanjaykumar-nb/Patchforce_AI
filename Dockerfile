@@ -48,7 +48,14 @@ USER appuser
 
 EXPOSE 8000
 
-HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=15s --start-period=30s --retries=4 \
     CMD curl -f http://localhost:8000/api/v1/health || exit 1
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Migrations now run automatically on every container start, using whatever
+# DATABASE_URL is already configured in the deployment environment (Render's
+# dashboard env vars). This removes the need to ever manually run `alembic
+# upgrade head` from a local machine against production again - every prior
+# migration in this project (002-005) had to be applied that way by hand,
+# which is exactly how migration 003 once went out to production without
+# ever being committed to git in the first place.
+CMD ["sh", "-c", "cd /app/backend && alembic upgrade head && cd /app && exec uvicorn app.main:app --host 0.0.0.0 --port 8000"]
