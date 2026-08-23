@@ -12,10 +12,12 @@ import subprocess
 import tempfile
 from dataclasses import dataclass
 from typing import Dict, Optional
-import docker
 
 from app.sandbox.security_profile import SandboxSecurityProfile
+from app.config import get_settings
 from app.core.logging import get_logger
+
+settings = get_settings()
 
 logger = get_logger("patchforge.sandbox.runner")
 
@@ -45,7 +47,20 @@ class DockerSandboxRunner:
         self._init_docker_client()
 
     def _init_docker_client(self):
+        # The `docker` SDK (and its dependency tree: requests, urllib3, etc.) is
+        # only worth importing - and paying its permanent baseline memory cost
+        # for the life of the process - if a Docker socket actually exists.
+        # Every deployment this app has actually run on (Render free tier
+        # included) has no socket, so this used to import+init the SDK and
+        # attempt a real connection on every single startup for nothing.
+        docker_socket = settings.DOCKER_SOCKET
+        if not docker_socket or not os.path.exists(docker_socket):
+            logger.info("No Docker socket present in this environment; using subprocess isolation.")
+            self._docker_client = None
+            return
+
         try:
+            import docker
             self._docker_client = docker.from_env()
             self._docker_client.ping()
             logger.info("Docker SDK connected successfully to Docker daemon.")
