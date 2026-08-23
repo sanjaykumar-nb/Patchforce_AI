@@ -25,18 +25,21 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
 
   // GitHub Token State
   const [githubToken, setGithubToken] = useState('');
+  const [githubOrgName, setGithubOrgName] = useState('');
 
   // OTP State
   const [otpEmail, setOtpEmail] = useState('');
   const [otpCode, setOtpCode] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [demoOtp, setDemoOtp] = useState(null);
+  const [otpOrgName, setOtpOrgName] = useState('');
 
   // Password State
   const [isRegister, setIsRegister] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
+  const [orgName, setOrgName] = useState('');
 
   // 1. GitHub Token Handler
   const handleGitHubLogin = async (e) => {
@@ -48,7 +51,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
     setLoading(true);
     setError(null);
     try {
-      const res = await loginWithGitHub(githubToken.trim());
+      const res = await loginWithGitHub(githubToken.trim(), githubOrgName.trim());
       localStorage.setItem('patchforge_token', res.data.access_token);
       localStorage.setItem('patchforge_user', JSON.stringify(res.data.user));
       onAuthSuccess(res.data.user, res.data.access_token);
@@ -70,7 +73,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
     setLoading(true);
     setError(null);
     try {
-      const res = await sendOTP(otpEmail.trim());
+      const res = await sendOTP(otpEmail.trim(), otpOrgName.trim());
       setOtpSent(true);
       setDemoOtp(res.data.demo_otp);
       setSuccessMsg(`6-Digit OTP code sent to ${otpEmail}!`);
@@ -110,7 +113,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
     setError(null);
     try {
       if (isRegister) {
-        await registerWithPassword(email.trim(), password, fullName);
+        await registerWithPassword(email.trim(), password, fullName, orgName.trim());
       }
       const res = await loginWithPassword(email.trim(), password);
       localStorage.setItem('patchforge_token', res.data.access_token);
@@ -241,6 +244,17 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
               </p>
             </div>
 
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-300">Workspace Name (optional, first sign-in only)</label>
+              <input
+                type="text"
+                value={githubOrgName}
+                onChange={(e) => setGithubOrgName(e.target.value)}
+                placeholder="Acme Corp"
+                className="w-full bg-slate-950/80 border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400"
+              />
+            </div>
+
             <button
               type="submit"
               disabled={loading}
@@ -267,6 +281,20 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
                     className="w-full bg-slate-950/80 border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400"
                     required
                   />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-300">Workspace Name (optional)</label>
+                  <input
+                    type="text"
+                    value={otpOrgName}
+                    onChange={(e) => setOtpOrgName(e.target.value)}
+                    placeholder="Acme Corp"
+                    className="w-full bg-slate-950/80 border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400"
+                  />
+                  <p className="text-[11px] text-[var(--text-subtle)] leading-relaxed">
+                    Join an existing team workspace by its exact name, or leave blank for your own private workspace.
+                  </p>
                 </div>
 
                 <button
@@ -331,17 +359,33 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
         {activeTab === 'password' && (
           <form onSubmit={handlePasswordAuth} className="space-y-3.5">
             {isRegister && (
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-300">Full Name</label>
-                <input
-                  type="text"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="Gurumurthy"
-                  className="w-full bg-slate-950/80 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400"
-                  required
-                />
-              </div>
+              <>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-300">Full Name</label>
+                  <input
+                    type="text"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    placeholder="Gurumurthy"
+                    className="w-full bg-slate-950/80 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-300">Workspace Name (optional)</label>
+                  <input
+                    type="text"
+                    value={orgName}
+                    onChange={(e) => setOrgName(e.target.value)}
+                    placeholder="Acme Corp"
+                    className="w-full bg-slate-950/80 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400"
+                  />
+                  <p className="text-[11px] text-[var(--text-subtle)] leading-relaxed">
+                    Join an existing team workspace by its exact name, or leave blank to create your own.
+                  </p>
+                </div>
+              </>
             )}
 
             <div className="space-y-1">

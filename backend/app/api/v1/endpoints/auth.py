@@ -4,12 +4,17 @@ PatchForge AI - Authentication & Authorization REST Endpoints
 Endpoints for user registration, JWT login authentication, and profile retrieval.
 """
 
+import re
+import uuid
+from typing import Optional, Tuple
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.config import get_settings
 from app.models.user import User, UserRole
+from app.models.organization import Organization
 from app.schemas.auth import (
     UserRegisterRequest,
     UserLoginRequest,
@@ -28,11 +33,51 @@ settings = get_settings()
 router = APIRouter()
 
 
-def _resolve_role_for_new_user(email: str) -> UserRole:
+def _slugify(text: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+    return slug or "workspace"
+
+
+def _resolve_organization(db: Session, organization_name: Optional[str], email: str) -> Tuple[Organization, bool]:
     """
-    Assigns ADMIN to emails listed in ADMIN_EMAILS, DEVELOPER otherwise. This is
-    the only way to reach an elevated role - there is no in-app promotion
-    endpoint, and no path here ever trusts a client-supplied role.
+    Resolves (or creates) the tenant workspace a new user lands in.
+
+    Matching is by exact workspace name only - there is no domain-based
+    auto-join, so one person registering "Acme Corp" never silently pulls in
+    every future @acme.com signup. Leaving the name blank creates a private,
+    single-person workspace named after the caller's email, matching the
+    "workspace per signup" model most B2B SaaS tools use (Slack, Linear, etc).
+    """
+    if organization_name and organization_name.strip():
+        slug = _slugify(organization_name.strip())
+        org = db.query(Organization).filter_by(slug=slug).first()
+        if org:
+            return org, False
+        org = Organization(name=organization_name.strip(), slug=slug)
+        db.add(org)
+        db.flush()
+        return org, True
+
+    base_name = email.split("@")[0]
+    slug = _slugify(base_name)
+    if db.query(Organization).filter_by(slug=slug).first():
+        slug = f"{slug}-{uuid.uuid4().hex[:6]}"
+    org = Organization(name=f"{base_name}'s Workspace", slug=slug)
+    db.add(org)
+    db.flush()
+    return org, True
+
+
+def _resolve_role_for_new_user(email: str, is_new_organization: bool) -> UserRole:
+    """
+    Assigns ADMIN to emails listed in ADMIN_EMAILS, DEVELOPER otherwise -
+    including for whoever creates a brand-new workspace. This is intentional:
+    self-registration must never grant an elevated role by itself (creating a
+    workspace is a zero-cost, unauthenticated action), or anyone could grant
+    themselves SECURITY_ENGINEER just by picking a fresh workspace name. The
+    `is_new_organization` flag is accepted for future use (e.g. an in-app
+    "promote to workspace owner" flow) but deliberately doesn't affect role
+    today. ADMIN_EMAILS remains the only way to reach an elevated role.
     """
     if email.lower().strip() in settings.admin_emails_list:
         return UserRole.ADMIN
@@ -49,6 +94,8 @@ def register_user(payload: UserRegisterRequest, db: Session = Depends(get_db)):
             detail="A user with this email address already exists.",
         )
 
+    org, is_new_org = _resolve_organization(db, payload.organization_name, payload.email)
+
     # Role is never taken from client input - a self-registering caller could
     # otherwise request "ADMIN" and require_roles()'s ADMIN-bypass would grant
     # them access to every protected endpoint. See _resolve_role_for_new_user.
@@ -56,14 +103,15 @@ def register_user(payload: UserRegisterRequest, db: Session = Depends(get_db)):
         email=payload.email.lower().strip(),
         hashed_password=get_password_hash(payload.password),
         full_name=payload.full_name,
-        role=_resolve_role_for_new_user(payload.email),
+        role=_resolve_role_for_new_user(payload.email, is_new_org),
+        organization_id=org.id,
         is_active=True,
     )
     db.add(user)
     db.commit()
     db.refresh(user)
 
-    logger.info(f"User registered successfully: [{user.email}] (Role: {user.role.value})")
+    logger.info(f"User registered successfully: [{user.email}] (Role: {user.role.value}, Org: {org.slug})")
     return user
 
 
@@ -85,7 +133,7 @@ def login_user(payload: UserLoginRequest, db: Session = Depends(get_db)):
         )
 
     access_token = create_access_token(
-        data={"sub": user.email, "role": user.role.value, "user_id": user.id}
+        data={"sub": user.email, "role": user.role.value, "user_id": user.id, "organization_id": user.organization_id}
     )
 
     return TokenResponse(
@@ -141,13 +189,15 @@ def login_with_github_token(payload: GitHubTokenLoginRequest, db: Session = Depe
     # Find or create user
     user = db.query(User).filter((User.github_username == gh_login) | (User.email == gh_email.lower())).first()
     if not user:
+        org, is_new_org = _resolve_organization(db, payload.organization_name, gh_email)
         user = User(
             email=gh_email.lower(),
             full_name=gh_name,
             github_username=gh_login,
             github_avatar_url=gh_avatar,
             github_token=token,
-            role=_resolve_role_for_new_user(gh_email),
+            role=_resolve_role_for_new_user(gh_email, is_new_org),
+            organization_id=org.id,
             is_active=True,
         )
         db.add(user)
@@ -163,7 +213,7 @@ def login_with_github_token(payload: GitHubTokenLoginRequest, db: Session = Depe
     logger.info(f"User authenticated via GitHub Access Token: [{user.github_username}] ({user.email})")
 
     access_token = create_access_token(
-        data={"sub": user.email, "role": user.role.value, "user_id": user.id}
+        data={"sub": user.email, "role": user.role.value, "user_id": user.id, "organization_id": user.organization_id}
     )
 
     return TokenResponse(
@@ -185,12 +235,14 @@ def send_otp(payload: OTPRequest, db: Session = Depends(get_db)):
 
     user = db.query(User).filter_by(email=email).first()
     if not user:
+        org, is_new_org = _resolve_organization(db, payload.organization_name, email)
         user = User(
             email=email,
             full_name=email.split("@")[0].capitalize(),
             otp_code=otp_code,
             otp_expires_at=expires_at,
-            role=_resolve_role_for_new_user(email),
+            role=_resolve_role_for_new_user(email, is_new_org),
+            organization_id=org.id,
             is_active=True,
         )
         db.add(user)
@@ -253,7 +305,7 @@ def verify_otp(payload: OTPVerifyRequest, db: Session = Depends(get_db)):
     db.refresh(user)
 
     access_token = create_access_token(
-        data={"sub": user.email, "role": user.role.value, "user_id": user.id}
+        data={"sub": user.email, "role": user.role.value, "user_id": user.id, "organization_id": user.organization_id}
     )
 
     logger.info(f"User successfully verified OTP: [{user.email}]")

@@ -26,7 +26,9 @@ def trigger_scan(payload: ScanCreate, db: Session = Depends(get_db), current_use
     Triggers an AST security scan against a repository.
     In local demonstration mode, scans the target repository fixture directory.
     """
-    repo = db.query(Repository).filter_by(id=payload.repository_id).first()
+    repo = db.query(Repository).filter_by(
+        id=payload.repository_id, organization_id=current_user.organization_id
+    ).first()
     if not repo:
         raise EntityNotFoundException("Repository", payload.repository_id)
 
@@ -131,10 +133,12 @@ def list_scans(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Lists security scans, optionally filtered by repository ID."""
-    query = db.query(Scan)
+    """Lists security scans for the caller's own tenant, optionally filtered by repository ID."""
+    query = db.query(Scan).join(Repository, Scan.repository_id == Repository.id).filter(
+        Repository.organization_id == current_user.organization_id
+    )
     if repository_id:
-        query = query.filter_by(repository_id=repository_id)
+        query = query.filter(Scan.repository_id == repository_id)
 
     total = query.count()
     items = query.order_by(Scan.created_at.desc()).offset(skip).limit(limit).all()
@@ -143,8 +147,13 @@ def list_scans(
 
 @router.get("/{scan_id}", response_model=ScanResponse, summary="Get Scan Details")
 def get_scan(scan_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Retrieves execution status, timestamps, and findings summary for a scan."""
-    scan = db.query(Scan).filter_by(id=scan_id).first()
+    """Retrieves execution status, timestamps, and findings summary for a scan, scoped to the caller's own tenant."""
+    scan = (
+        db.query(Scan)
+        .join(Repository, Scan.repository_id == Repository.id)
+        .filter(Scan.id == scan_id, Repository.organization_id == current_user.organization_id)
+        .first()
+    )
     if not scan:
         raise EntityNotFoundException("Scan", scan_id)
     return scan
@@ -152,8 +161,13 @@ def get_scan(scan_id: str, db: Session = Depends(get_db), current_user: User = D
 
 @router.get("/{scan_id}/vulnerabilities", response_model=VulnerabilityListResponse, summary="Get Scan Vulnerabilities")
 def get_scan_vulnerabilities(scan_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Retrieves all vulnerability findings detected within a specific scan."""
-    scan = db.query(Scan).filter_by(id=scan_id).first()
+    """Retrieves all vulnerability findings detected within a specific scan, scoped to the caller's own tenant."""
+    scan = (
+        db.query(Scan)
+        .join(Repository, Scan.repository_id == Repository.id)
+        .filter(Scan.id == scan_id, Repository.organization_id == current_user.organization_id)
+        .first()
+    )
     if not scan:
         raise EntityNotFoundException("Scan", scan_id)
 

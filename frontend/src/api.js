@@ -30,13 +30,23 @@ export const getHealth = () => api.get('/health');
 export const getMetrics = () => api.get('/metrics');
 
 // Authentication & GitHub Token / OTP Verification
-export const loginWithGitHub = (token) => api.post('/auth/github', { token });
-export const sendOTP = (email) => api.post('/auth/otp/send', { email });
+export const loginWithGitHub = (token, organizationName) =>
+  api.post('/auth/github', { token, organization_name: organizationName || undefined });
+export const sendOTP = (email, organizationName) =>
+  api.post('/auth/otp/send', { email, organization_name: organizationName || undefined });
 export const verifyOTP = (email, otp) => api.post('/auth/otp/verify', { email, otp });
 export const loginWithPassword = (email, password) => api.post('/auth/login', { email, password });
-export const registerWithPassword = (email, password, fullName) =>
-  api.post('/auth/register', { email, password, full_name: fullName });
+export const registerWithPassword = (email, password, fullName, organizationName) =>
+  api.post('/auth/register', {
+    email,
+    password,
+    full_name: fullName,
+    organization_name: organizationName || undefined,
+  });
 export const getMyProfile = () => api.get('/auth/me');
+
+// Tenant Workspace
+export const getMyOrganization = () => api.get('/organizations/me');
 
 // Repositories
 export const getRepositories = () => api.get('/repositories');

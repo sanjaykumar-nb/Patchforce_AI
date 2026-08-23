@@ -7,7 +7,8 @@ Represents platform users with Role-Based Access Control (RBAC).
 import enum
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, Boolean, DateTime, Enum
+from sqlalchemy import Column, String, Boolean, DateTime, Enum, ForeignKey
+from sqlalchemy.orm import relationship
 from app.database import Base
 
 
@@ -26,6 +27,9 @@ class User(Base):
     hashed_password = Column(String(255), nullable=True)
     full_name = Column(String(255), nullable=True)
     role = Column(Enum(UserRole), default=UserRole.DEVELOPER, nullable=False, index=True)
+    # Tenant this user belongs to. Nullable only for rows created before multi-tenancy
+    # shipped (see migration 005) - every user created through the API always has one.
+    organization_id = Column(String(36), ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True, index=True)
     github_token = Column(String(512), nullable=True)
     github_username = Column(String(255), nullable=True, index=True)
     github_avatar_url = Column(String(1024), nullable=True)
@@ -34,6 +38,9 @@ class User(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+
+    # Relationships
+    organization = relationship("Organization", back_populates="users")
 
     def __repr__(self) -> str:
         return f"<User id={self.id} email={self.email} github={self.github_username} role={self.role}>"

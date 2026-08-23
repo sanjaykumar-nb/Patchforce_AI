@@ -53,7 +53,9 @@ def create_repository(payload: RepositoryCreate, db: Session = Depends(get_db), 
     else:
         clean_name = raw_name
 
-    existing = db.query(Repository).filter_by(full_name=clean_full_name).first()
+    existing = db.query(Repository).filter_by(
+        full_name=clean_full_name, organization_id=current_user.organization_id
+    ).first()
     if existing:
         raise PatchForgeException(
             message=f"Repository with full_name '{clean_full_name}' is already registered.",
@@ -67,6 +69,7 @@ def create_repository(payload: RepositoryCreate, db: Session = Depends(get_db), 
     clean_clone = _sanitize_github_url(raw_clone, suffix=".git")
 
     repo = Repository(
+        organization_id=current_user.organization_id,
         name=clean_name,
         full_name=clean_full_name,
         url=clean_url,
@@ -88,16 +91,17 @@ def list_repositories(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Retrieves all registered repositories with pagination."""
-    total = db.query(Repository).count()
-    items = db.query(Repository).order_by(Repository.created_at.desc()).offset(skip).limit(limit).all()
+    """Retrieves all repositories registered under the caller's own tenant workspace, with pagination."""
+    query = db.query(Repository).filter_by(organization_id=current_user.organization_id)
+    total = query.count()
+    items = query.order_by(Repository.created_at.desc()).offset(skip).limit(limit).all()
     return RepositoryListResponse(total=total, items=items)
 
 
 @router.get("/{repo_id}", response_model=RepositoryResponse, summary="Get Repository Details")
 def get_repository(repo_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Retrieves a single repository by its unique identifier."""
-    repo = db.query(Repository).filter_by(id=repo_id).first()
+    """Retrieves a single repository by its unique identifier, scoped to the caller's own tenant."""
+    repo = db.query(Repository).filter_by(id=repo_id, organization_id=current_user.organization_id).first()
     if not repo:
         raise EntityNotFoundException("Repository", repo_id)
     return repo
@@ -109,8 +113,8 @@ def delete_repository(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.SECURITY_ENGINEER)),
 ):
-    """Removes a repository and all associated scans, findings, and patches."""
-    repo = db.query(Repository).filter_by(id=repo_id).first()
+    """Removes a repository and all associated scans, findings, and patches. Scoped to the caller's own tenant."""
+    repo = db.query(Repository).filter_by(id=repo_id, organization_id=current_user.organization_id).first()
     if not repo:
         raise EntityNotFoundException("Repository", repo_id)
     db.delete(repo)

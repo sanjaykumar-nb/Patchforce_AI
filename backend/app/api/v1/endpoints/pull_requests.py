@@ -9,7 +9,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, status, Query
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.models import PullRequest, Patch, PRStatus
+from app.models import PullRequest, Patch, PRStatus, Vulnerability, Repository
 from app.models.user import User, UserRole
 from app.schemas.pull_request import (
     PullRequestCreateRequest,
@@ -32,8 +32,15 @@ def create_pull_request(
     """
     Creates an isolated remediation branch, commits the verified code diff,
     and opens a comprehensive Pull Request with security verification scorecards.
+    Scoped to the caller's own tenant.
     """
-    patch = db.query(Patch).filter_by(id=payload.patch_id).first()
+    patch = (
+        db.query(Patch)
+        .join(Vulnerability, Patch.vulnerability_id == Vulnerability.id)
+        .join(Repository, Vulnerability.repository_id == Repository.id)
+        .filter(Patch.id == payload.patch_id, Repository.organization_id == current_user.organization_id)
+        .first()
+    )
     if not patch:
         raise EntityNotFoundException("Patch", payload.patch_id)
 
@@ -55,13 +62,15 @@ def list_pull_requests(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Retrieves a paginated list of automated pull requests."""
-    query = db.query(PullRequest)
+    """Retrieves a paginated list of automated pull requests, scoped to the caller's own tenant."""
+    query = db.query(PullRequest).join(Repository, PullRequest.repository_id == Repository.id).filter(
+        Repository.organization_id == current_user.organization_id
+    )
 
     if repository_id:
-        query = query.filter_by(repository_id=repository_id)
+        query = query.filter(PullRequest.repository_id == repository_id)
     if status:
-        query = query.filter_by(status=status)
+        query = query.filter(PullRequest.status == status)
 
     total = query.count()
     items = query.order_by(PullRequest.created_at.desc()).offset(skip).limit(limit).all()
@@ -70,8 +79,13 @@ def list_pull_requests(
 
 @router.get("/{pr_id}", response_model=PullRequestResponse, summary="Get Pull Request Details")
 def get_pull_request(pr_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Retrieves detailed information for a specific pull request."""
-    pr = db.query(PullRequest).filter_by(id=pr_id).first()
+    """Retrieves detailed information for a specific pull request, scoped to the caller's own tenant."""
+    pr = (
+        db.query(PullRequest)
+        .join(Repository, PullRequest.repository_id == Repository.id)
+        .filter(PullRequest.id == pr_id, Repository.organization_id == current_user.organization_id)
+        .first()
+    )
     if not pr:
         raise EntityNotFoundException("PullRequest", pr_id)
     return pr

@@ -8,6 +8,7 @@ from fastapi import APIRouter
 from app.api.v1.endpoints import (
     health,
     auth,
+    organizations,
     repositories,
     scans,
     vulnerabilities,
@@ -24,6 +25,9 @@ api_router.include_router(health.router, tags=["Observability & Health"])
 
 # Authentication & RBAC
 api_router.include_router(auth.router, prefix="/auth", tags=["Authentication & RBAC"])
+
+# Tenant Workspace
+api_router.include_router(organizations.router, prefix="/organizations", tags=["Organizations"])
 
 # Repository Management
 api_router.include_router(repositories.router, prefix="/repositories", tags=["Repositories"])

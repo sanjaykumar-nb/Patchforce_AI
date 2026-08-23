@@ -99,7 +99,17 @@ export default function Navbar({
                     </span>
                   )}
                 </div>
-                <p className="text-[10px] text-slate-400 font-mono capitalize">{currentUser.role || 'Developer'}</p>
+                <div className="flex items-center gap-1.5">
+                  <p className="text-[10px] text-slate-400 font-mono capitalize">{currentUser.role || 'Developer'}</p>
+                  {currentUser.organization?.name && (
+                    <>
+                      <span className="text-[9px] text-slate-600">·</span>
+                      <span className="text-[10px] text-indigo-300 font-mono truncate max-w-[110px]" title={currentUser.organization.name}>
+                        {currentUser.organization.name}
+                      </span>
+                    </>
+                  )}
+                </div>
               </div>
 
               <button

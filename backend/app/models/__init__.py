@@ -5,6 +5,7 @@ Consolidates all SQLAlchemy database entities for Alembic discovery and ORM rela
 """
 
 from app.database import Base
+from app.models.organization import Organization
 from app.models.user import User, UserRole
 from app.models.repository import Repository
 from app.models.scan import Scan, ScanStatus
@@ -19,6 +20,7 @@ from app.models.audit_log import AuditLog
 
 __all__ = [
     "Base",
+    "Organization",
     "User",
     "UserRole",
     "Repository",
