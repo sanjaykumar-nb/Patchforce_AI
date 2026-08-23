@@ -1,0 +1,7 @@
+{$DOMAIN} {
+	# Caddy automatically provisions and renews a Let's Encrypt certificate
+	# for {$DOMAIN} - no manual cert setup needed. Requires port 80 and 443
+	# to be reachable from the internet and DOMAIN's DNS A record pointing
+	# at this server's public IP before it will succeed.
+	reverse_proxy frontend:80
+}

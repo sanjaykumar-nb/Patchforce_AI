@@ -1,0 +1,19 @@
+# Bandit AST Security Analysis Configuration
+# ============================================
+
+exclude_dirs:
+  - ".venv"
+  - "node_modules"
+  - "fixtures"
+  - "backend/tests"
+  - "frontend"
+  - "artifacts"
+
+# Filter standard framework behaviors
+skips:
+  - "B101"
+  - "B104"
+  - "B106"
+  - "B108"
+  - "B404"
+  - "B608"

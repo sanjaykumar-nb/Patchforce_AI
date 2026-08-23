@@ -1,0 +1,105 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: patchforge-prod-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-patchforge}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.prod}
+      POSTGRES_DB: ${POSTGRES_DB:-patchforge_db}
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-patchforge} -d ${POSTGRES_DB:-patchforge_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: patchforge-prod-redis
+    restart: always
+    volumes:
+      - redis_prod_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: patchforge-prod-backend
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-patchforge}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-patchforge_db}
+      - REDIS_URL=redis://redis:6379/0
+      - GROQ_API_KEY=${GROQ_API_KEY:?Set GROQ_API_KEY in .env.prod - get one free at https://console.groq.com}
+      - GROQ_MODEL=${GROQ_MODEL:-openai/gpt-oss-20b}
+      - JWT_SECRET=${JWT_SECRET:?Set JWT_SECRET in .env.prod - generate with: openssl rand -hex 32}
+      - SECRET_KEY=${SECRET_KEY:?Set SECRET_KEY in .env.prod - generate with: openssl rand -hex 32}
+      - GITHUB_WEBHOOK_SECRET=${GITHUB_WEBHOOK_SECRET:?Set GITHUB_WEBHOOK_SECRET in .env.prod - generate with: openssl rand -hex 32}
+      - ENVIRONMENT=production
+      - DEBUG=false
+      - CORS_ORIGINS=https://${DOMAIN:?Set DOMAIN in .env.prod to your public domain/subdomain, e.g. patchforge.example.com}
+
+  celery-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: patchforge-prod-celery
+    restart: always
+    command: ["celery", "-A", "app.worker.celery_app.celery_app", "worker", "--loglevel=info", "-Q", "scans,verification,remediation"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-patchforge}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-patchforge_db}
+      - REDIS_URL=redis://redis:6379/0
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - GROQ_MODEL=${GROQ_MODEL:-openai/gpt-oss-20b}
+      - ENVIRONMENT=production
+      - DEBUG=false
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: patchforge-prod-frontend
+    restart: always
+    depends_on:
+      - backend
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: patchforge-prod-caddy
+    restart: always
+    environment:
+      - DOMAIN=${DOMAIN:?Set DOMAIN in .env.prod to your public domain/subdomain, e.g. patchforge.example.com}
+    depends_on:
+      - frontend
+      - backend
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  postgres_prod_data:
+  redis_prod_data:
+  caddy_data:
+  caddy_config:

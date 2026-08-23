@@ -1,0 +1,17 @@
+# Gitleaks Configuration for PatchForge AI
+# ==========================================
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Allowed synthetic tokens and tests"
+paths = [
+  '''fixtures/''',
+  '''backend/tests/''',
+  '''package-lock.json''',
+]
+regexes = [
+  '''P@ssw0rdSecure!2026''',
+  '''SuperSecretPassword123!''',
+]

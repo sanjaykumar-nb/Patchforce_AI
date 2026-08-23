@@ -1,0 +1,126 @@
+services:
+  # ----------------------------------------------------------------------------
+  # PostgreSQL: Primary Relational Store for Scans, Findings, Patches & Audits
+  # ----------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: patchforge_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-patchforge}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-patchforge_secure_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-patchforge_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-patchforge} -d ${POSTGRES_DB:-patchforge_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - patchforge_network
+
+  # ----------------------------------------------------------------------------
+  # Redis: High-Performance Message Broker & Task Queue State Bus
+  # ----------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: patchforge_redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 3s
+    networks:
+      - patchforge_network
+
+  # ----------------------------------------------------------------------------
+  # Backend API Gateway: FastAPI REST API, AST Scanner & Pipeline Orchestrator
+  # ----------------------------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: patchforge_backend
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-patchforge}:${POSTGRES_PASSWORD:-patchforge_secure_pass}@postgres:5432/${POSTGRES_DB:-patchforge_db}
+      - REDIS_URL=redis://redis:6379/0
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - GROQ_MODEL=${GROQ_MODEL:-openai/gpt-oss-20b}
+      - ENVIRONMENT=production
+      - DEBUG=false
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - patchforge_network
+
+  # ----------------------------------------------------------------------------
+  # Celery Asynchronous Worker: Background Scanner, Sandbox & LLM Worker
+  # ----------------------------------------------------------------------------
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: patchforge_worker
+    restart: unless-stopped
+    command: ["celery", "-A", "app.workers.celery_app", "worker", "--loglevel=info", "--concurrency=4"]
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-patchforge}:${POSTGRES_PASSWORD:-patchforge_secure_pass}@postgres:5432/${POSTGRES_DB:-patchforge_db}
+      - REDIS_URL=redis://redis:6379/0
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - GROQ_MODEL=${GROQ_MODEL:-openai/gpt-oss-20b}
+    volumes:
+      - ./backend:/app
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - patchforge_network
+
+  # ----------------------------------------------------------------------------
+  # Frontend: React + Tailwind CSS Dashboard & Live Pipeline Log Streamer
+  # ----------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: patchforge_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - patchforge_network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  patchforge_network:
+    driver: bridge
