@@ -96,6 +96,12 @@ class GitHubClient:
 
         # 1. Attempt live GitHub API PR creation if token is configured
         api_error_reason = None
+        if not active_token:
+            api_error_reason = (
+                "No GitHub token available - the caller's account has no linked "
+                "GitHub token (sign in via the GitHub tab, not password/OTP), and "
+                "no service-level GITHUB_ACCESS_TOKEN is configured."
+            )
         if active_token:
             try:
                 headers = {
@@ -275,6 +281,7 @@ class GitHubClient:
             body=body,
             status=PRStatus.OPEN,
             is_simulated=is_simulated,
+            simulation_reason=api_error_reason if is_simulated else None,
         )
         db.add(pr)
 

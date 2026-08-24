@@ -86,9 +86,12 @@ def test_e2e_api_repository_and_scan_lifecycle(admin_auth_headers):
         },
         headers=admin_auth_headers,
     )
-    assert scan_resp.status_code == 201
-    scan_data = scan_resp.json()
-    scan_id = scan_data["id"]
+    assert scan_resp.status_code == 202
+    scan_id = scan_resp.json()["id"]
+    # Scans run in a background task now (202 PENDING returned immediately) -
+    # TestClient waits out the whole ASGI cycle including background tasks,
+    # so a fresh GET already reflects the finished scan.
+    scan_data = client.get(f"/api/v1/scans/{scan_id}", headers=admin_auth_headers).json()
     assert scan_data["status"] == "COMPLETED"
     assert scan_data["vulnerabilities_count"] >= 1
 

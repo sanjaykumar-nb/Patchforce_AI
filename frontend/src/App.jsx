@@ -19,6 +19,7 @@ import {
   getPullRequests,
   createPullRequest,
   createScan,
+  getScan,
   getMetrics,
 } from './api';
 import { CheckCircle2, AlertCircle, Sparkles } from 'lucide-react';
@@ -141,7 +142,14 @@ export default function App() {
     try {
       const res = await createPullRequest(targetPatchId);
       setCreatedPR(res.data);
-      showToast(`Pull Request #${res.data.pr_number} created successfully!`);
+      if (res.data.is_simulated) {
+        showToast(
+          `Patch validated, but not pushed to GitHub: ${res.data.simulation_reason || 'no GitHub token available.'}`,
+          'error'
+        );
+      } else {
+        showToast(`Pull Request #${res.data.pr_number} opened on GitHub!`);
+      }
       await loadData();
     } catch (err) {
       showToast('PR creation failed: ' + (err.response?.data?.detail || err.message), 'error');
@@ -153,8 +161,29 @@ export default function App() {
   const handleTriggerScan = async (repoId) => {
     setIsScanningRepo(repoId);
     try {
-      await createScan({ repository_id: repoId });
-      showToast('AST Security Scan completed!');
+      const { data: scan } = await createScan({ repository_id: repoId });
+      showToast('AST scan started — analyzing repository...');
+
+      // Scans run in a background task and return 202 PENDING immediately
+      // (this keeps the server responsive instead of blocking/crashing on a
+      // constrained host during a slow clone+parse) - poll until it's done.
+      const scanId = scan.id;
+      const deadline = Date.now() + 90_000;
+      let finalScan = scan;
+      while (Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 1500));
+        const { data: polled } = await getScan(scanId);
+        finalScan = polled;
+        if (polled.status === 'COMPLETED' || polled.status === 'FAILED') break;
+      }
+
+      if (finalScan.status === 'COMPLETED') {
+        showToast(`Scan complete — ${finalScan.vulnerabilities_count} finding(s) detected.`);
+      } else if (finalScan.status === 'FAILED') {
+        showToast('Scan failed: ' + (finalScan.error_message || 'unknown error'), 'error');
+      } else {
+        showToast('Scan is still running — check back in a moment.', 'error');
+      }
       await loadData();
     } catch (err) {
       showToast('Scan failed: ' + (err.response?.data?.detail || err.message), 'error');

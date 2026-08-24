@@ -68,9 +68,13 @@ def test_complete_autonomous_devsecops_pipeline_e2e(admin_auth_headers):
         json={"repository_id": repo_id},
         headers=auth_headers,
     )
-    assert scan_resp.status_code == 201
-    scan_data = scan_resp.json()
-    scan_id = scan_data["id"]
+    assert scan_resp.status_code == 202
+    scan_id = scan_resp.json()["id"]
+    # Scans now run in a background task (returns 202 PENDING immediately so
+    # the server is never blocked long enough to OOM/health-check-fail on a
+    # constrained host) - TestClient waits out the whole ASGI cycle including
+    # background tasks, so a fresh GET already reflects the finished scan.
+    scan_data = client.get(f"/api/v1/scans/{scan_id}", headers=auth_headers).json()
     assert scan_data["status"] == "COMPLETED"
 
     # Fetch detected vulnerability findings

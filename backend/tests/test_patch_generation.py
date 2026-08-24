@@ -158,7 +158,7 @@ def test_api_patch_lifecycle(admin_auth_headers):
         },
         headers=admin_auth_headers,
     )
-    assert scan_resp.status_code == 201
+    assert scan_resp.status_code == 202
     scan_id = scan_resp.json()["id"]
 
     # 3. Get first vulnerability

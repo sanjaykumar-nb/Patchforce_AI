@@ -26,6 +26,7 @@ class PullRequestResponse(BaseModel):
     body: str
     status: PRStatus
     is_simulated: bool = False
+    simulation_reason: Optional[str] = None
     merged_by: Optional[str]
     created_at: datetime
     updated_at: datetime

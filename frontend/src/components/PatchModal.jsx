@@ -5,6 +5,7 @@ import {
   GitPullRequest,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   FileCode,
   Sparkles,
   ExternalLink,
@@ -180,16 +181,25 @@ export default function PatchModal({
 
           <div className="flex items-center gap-3">
             {createdPR ? (
-              <a
-                href={createdPR.pr_url || '#'}
-                target="_blank"
-                rel="noreferrer"
-                className="btn-success text-xs flex items-center gap-2"
-              >
-                <GitPullRequest className="w-4 h-4" />
-                <span>View PR #{createdPR.pr_number}</span>
-                <ExternalLink className="w-3.5 h-3.5 opacity-80" />
-              </a>
+              createdPR.is_simulated ? (
+                <div className="flex items-center gap-2 text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                  <span>
+                    Not pushed to GitHub — {createdPR.simulation_reason || 'no GitHub token was available.'}
+                  </span>
+                </div>
+              ) : (
+                <a
+                  href={createdPR.pr_url || '#'}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn-success text-xs flex items-center gap-2"
+                >
+                  <GitPullRequest className="w-4 h-4" />
+                  <span>View PR #{createdPR.pr_number}</span>
+                  <ExternalLink className="w-3.5 h-3.5 opacity-80" />
+                </a>
+              )
             ) : (
               <button
                 onClick={() => onCreatePR(patch.id || patch.patch_id)}

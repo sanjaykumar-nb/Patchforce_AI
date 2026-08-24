@@ -56,6 +56,7 @@ export const deleteRepository = (id) => api.delete(`/repositories/${id}`);
 // Scans
 export const getScans = (repoId) =>
   api.get('/scans', { params: repoId ? { repository_id: repoId } : {} });
+export const getScan = (scanId) => api.get(`/scans/${scanId}`);
 export const createScan = (data) => api.post('/scans', data);
 
 // Vulnerabilities

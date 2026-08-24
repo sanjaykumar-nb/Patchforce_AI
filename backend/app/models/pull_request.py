@@ -32,6 +32,10 @@ class PullRequest(Base):
     body = Column(Text, nullable=False)
     status = Column(Enum(PRStatus), default=PRStatus.OPEN, nullable=False, index=True)
     is_simulated = Column(Boolean, default=False, nullable=False)
+    # Why the real GitHub API push was skipped/failed and this fell back to a
+    # simulated (non-functional) PR link - e.g. "no GitHub token linked",
+    # "no push access", "branch creation failed: 422 ...". NULL for real PRs.
+    simulation_reason = Column(Text, nullable=True)
     merged_by = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
