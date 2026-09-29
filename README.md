@@ -4,7 +4,6 @@
 
 PatchForge AI scans Python and JavaScript code using syntax trees (not regex), confirms findings with a proof-of-concept exploit, asks an LLM to rewrite only the vulnerable function, validates the result in four stages, and opens a GitHub pull request with a scorecard attached.
 
-- **Live frontend:** https://patchforgeai.vercel.app
 - **Live API:** https://patchforge-ai-v7ro.onrender.com/api/v1/health
 - **Stack:** FastAPI · SQLAlchemy/Alembic · PostgreSQL (Neon) · Tree-sitter · Groq (`openai/gpt-oss-20b`) · React 18 + Vite
 
