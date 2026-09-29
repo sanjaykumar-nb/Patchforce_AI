@@ -53,7 +53,7 @@ PatchForge AI scans Python and JavaScript code using syntax trees (not regex), c
 **70 automated tests pass** (`pytest backend/tests`). They cover authentication and RBAC, scanning, PoC verification, patch generation and splicing, all four validation stages, PR creation, webhooks, and multi-tenant isolation.
 
 ### The "50-case benchmark" and why it doesn't show 100% accuracy
-`benchmark/benchmark_suite.py` runs 50 cases (33 vulnerable, 17 safe) across CWE-89/78/22/502, and every case passes. **That result should not be read as 100% precision or recall.** The cases are generated from a few templates. Within each CWE, the vulnerable cases are the same snippet with only the function name changed, and so are the safe cases. The rules were written against these same patterns, so the benchmark shows that the scanner still detects the shapes it was designed for. That makes it useful as a **regression check**. It is not an accuracy measurement.
+`benchmark/benchmark_suite.py` runs 50 Python cases (33 vulnerable, 17 safe) across CWE-89/78/22/502, and every case passes. **That result should not be read as 100% precision or recall.** The 50 cases are only **8 distinct snippets**, one vulnerable and one safe per CWE, repeated with just the function name changed. None of them are JavaScript. The rules were written against these same patterns, so the benchmark shows that the scanner still detects the shapes it was designed for. That makes it useful as a **regression check**. It is not an accuracy measurement.
 
 What it doesn't test:
 - Real-world code taken from outside the project
@@ -63,7 +63,7 @@ What it doesn't test:
 
 **Realistic expectation:** like most pattern-based static analysis, the scanner will produce false positives and miss vulnerabilities on real codebases. We haven't measured either rate on external code yet. Doing that against a labelled public dataset such as OWASP Benchmark, Juliet, or CVE-fix commits is the top item on the roadmap.
 
-The average scan latency the suite reports (under 1 ms per case) was measured on small single-function snippets. Whole-repository scans depend on repo size and are dominated by `git clone`.
+The suite's average time (about 2 ms per case on a dev laptop) was measured on small single-function snippets. See [`benchmark/benchmark_report.md`](benchmark/benchmark_report.md) for the full breakdown. Whole-repository scans depend on repo size and are dominated by `git clone`.
 
 ---
 
